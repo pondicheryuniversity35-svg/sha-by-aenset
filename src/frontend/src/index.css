@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 200 700;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 1rem;
+    /* Light mode - warm white */
+    --background: 0.97 0.005 240;
+    --foreground: 0.13 0.035 255;
+    --card: 1 0 0;
+    --card-foreground: 0.13 0.035 255;
+    --popover: 1 0 0;
+    --popover-foreground: 0.13 0.035 255;
+    --primary: 0.57 0.18 268;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.93 0.02 255;
+    --secondary-foreground: 0.13 0.035 255;
+    --muted: 0.93 0.015 255;
+    --muted-foreground: 0.55 0.03 255;
+    --accent: 0.57 0.18 268;
+    --accent-foreground: 1 0 0;
+    --destructive: 0.6 0.22 25;
+    --destructive-foreground: 1 0 0;
+    --border: 0.88 0.02 255;
+    --input: 0.88 0.02 255;
+    --ring: 0.57 0.18 268;
+    --success: 0.65 0.18 145;
+    --success-foreground: 1 0 0;
+    --chart-1: 0.57 0.18 268;
+    --chart-2: 0.65 0.18 145;
+    --chart-3: 0.6 0.22 25;
+    --chart-4: 0.7 0.15 55;
+    --chart-5: 0.6 0.18 310;
+    --sidebar: 0.95 0.01 255;
+    --sidebar-foreground: 0.13 0.035 255;
+    --sidebar-primary: 0.57 0.18 268;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.93 0.02 255;
+    --sidebar-accent-foreground: 0.13 0.035 255;
+    --sidebar-border: 0.88 0.02 255;
+    --sidebar-ring: 0.57 0.18 268;
+  }
+
+  .dark {
+    /* Dark navy design from spec */
+    --background: 0.13 0.035 255;
+    --foreground: 0.96 0.01 270;
+    --card: 0.19 0.05 255;
+    --card-foreground: 0.96 0.01 270;
+    --popover: 0.22 0.05 255;
+    --popover-foreground: 0.96 0.01 270;
+    --primary: 0.57 0.18 268;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.28 0.06 255;
+    --secondary-foreground: 0.96 0.01 270;
+    --muted: 0.24 0.05 255;
+    --muted-foreground: 0.72 0.03 255;
+    --accent: 0.57 0.18 268;
+    --accent-foreground: 1 0 0;
+    --destructive: 0.65 0.22 25;
+    --destructive-foreground: 1 0 0;
+    --border: 0.28 0.06 255;
+    --input: 0.28 0.06 255;
+    --ring: 0.57 0.18 268;
+    --success: 0.65 0.18 145;
+    --success-foreground: 1 0 0;
+    --chart-1: 0.57 0.18 268;
+    --chart-2: 0.65 0.18 145;
+    --chart-3: 0.65 0.22 25;
+    --chart-4: 0.7 0.15 55;
+    --chart-5: 0.6 0.18 310;
+    --sidebar: 0.19 0.05 255;
+    --sidebar-foreground: 0.96 0.01 270;
+    --sidebar-primary: 0.57 0.18 268;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.24 0.05 255;
+    --sidebar-accent-foreground: 0.96 0.01 270;
+    --sidebar-border: 0.28 0.06 255;
+    --sidebar-ring: 0.57 0.18 268;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+}
+
+/* ─── Splash Screen — true full-screen coverage on all devices ─────────────── */
+.splash-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100vh;
+  z-index: 9999;
+  overflow: hidden;
+  background: #0a0a0a;
+}
+
+.splash-fullscreen img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+@layer utilities {
+  .tab-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .glow-accent {
+    box-shadow: 0 0 20px oklch(0.57 0.18 268 / 0.3);
+  }
+  .card-glow {
+    box-shadow: 0 4px 24px oklch(0.57 0.18 268 / 0.12), 0 1px 4px
+      oklch(0 0 0 / 0.3);
+  }
+
+  /* =====================================================
+     Adaptive text contrast for tab backgrounds
+     When a background image is set, data-bg-mode is
+     applied to automatically keep all text legible.
+     ===================================================== */
+
+  /* --- DARK background mode (light text) --- */
+  [data-bg-mode="dark"] {
+    color: rgba(255, 255, 255, 0.95);
+  }
+  [data-bg-mode="dark"] h1,
+  [data-bg-mode="dark"] h2,
+  [data-bg-mode="dark"] h3,
+  [data-bg-mode="dark"] h4,
+  [data-bg-mode="dark"] p,
+  [data-bg-mode="dark"] span:not(.no-contrast-override),
+  [data-bg-mode="dark"] label,
+  [data-bg-mode="dark"] .text-foreground,
+  [data-bg-mode="dark"] .text-muted-foreground {
+    color: rgba(255, 255, 255, 0.9) !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+  [data-bg-mode="dark"] button {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+  [data-bg-mode="dark"] svg {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  }
+  [data-bg-mode="dark"] input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  [data-bg-mode="dark"] .text-accent {
+    color: oklch(0.82 0.12 268) !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  }
+  [data-bg-mode="dark"] .bg-card,
+  [data-bg-mode="dark"] .bg-background {
+    background-color: rgba(0, 0, 0, 0.45) !important;
+    backdrop-filter: blur(6px);
+  }
+  [data-bg-mode="dark"] .border-border {
+    border-color: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  /* --- LIGHT background mode (dark text) --- */
+  [data-bg-mode="light"] h1,
+  [data-bg-mode="light"] h2,
+  [data-bg-mode="light"] h3,
+  [data-bg-mode="light"] h4,
+  [data-bg-mode="light"] p,
+  [data-bg-mode="light"] span:not(.no-contrast-override),
+  [data-bg-mode="light"] label,
+  [data-bg-mode="light"] .text-foreground,
+  [data-bg-mode="light"] .text-muted-foreground {
+    color: rgba(20, 20, 40, 0.9) !important;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+  }
+  [data-bg-mode="light"] button {
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  }
+  [data-bg-mode="light"] svg {
+    filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.5));
+  }
+  [data-bg-mode="light"] input::placeholder {
+    color: rgba(20, 20, 40, 0.4);
+  }
+  [data-bg-mode="light"] .text-accent {
+    color: oklch(0.42 0.18 268) !important;
+  }
+  [data-bg-mode="light"] .bg-card,
+  [data-bg-mode="light"] .bg-background {
+    background-color: rgba(255, 255, 255, 0.45) !important;
+    backdrop-filter: blur(6px);
+  }
+  [data-bg-mode="light"] .border-border {
+    border-color: rgba(0, 0, 0, 0.15) !important;
+  }
+}

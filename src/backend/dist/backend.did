@@ -1,0 +1,173 @@
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfileView = 
+ record {
+   email: text;
+   finances: vec Entry;
+   name: text;
+   preferences: Preferences;
+   registrationTime: Time;
+   tasks: vec Task;
+ };
+type User = principal;
+type Time = int;
+type Task = 
+ record {
+   completed: bool;
+   date: text;
+   description: text;
+   id: nat;
+   timestamp: Time;
+   title: text;
+   user: User;
+ };
+type RoutineCompletion = 
+ record {
+   completedRoutineIds: vec nat;
+   date: text;
+ };
+type Routine = 
+ record {
+   id: nat;
+   name: text;
+   timeOfDay: text;
+   timestamp: Time;
+ };
+type Preferences = 
+ record {
+   currency: text;
+   darkMode: bool;
+   geminiApiKey: text;
+   language: text;
+ };
+type PlannerDayOutfit = 
+ record {
+   date: text;
+   outfitId: nat;
+ };
+type Outfit = 
+ record {
+   description: text;
+   id: nat;
+   name: text;
+   occasion: text;
+   photoUrl: text;
+   tags: vec text;
+   timestamp: Time;
+ };
+type Note = 
+ record {
+   body: text;
+   folderId: nat;
+   id: nat;
+   tags: vec text;
+   timestamp: Time;
+   title: text;
+ };
+type Folder = 
+ record {
+   color: text;
+   id: nat;
+   name: text;
+   timestamp: Time;
+ };
+type FinanceSummary = 
+ record {
+   balance: float64;
+   totalExpenses: float64;
+   totalIncome: float64;
+ };
+type Entry = 
+ record {
+   amount: float64;
+   category: text;
+   date: text;
+   description: text;
+   entryType: text;
+   id: nat;
+   timestamp: Time;
+ };
+type ClothingItem = 
+ record {
+   category: text;
+   id: nat;
+   name: text;
+   photoUrl: text;
+   timestamp: Time;
+ };
+type BudgetLimit = 
+ record {
+   category: text;
+   createdAt: int;
+   id: nat;
+   monthlyLimit: float64;
+ };
+service : {
+  _initializeAccessControl: () -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  createBudgetLimit: (category: text, monthlyLimit: float64) -> (BudgetLimit);
+  createClothingItem: (name: text, category: text, photoUrl: text) ->
+   (ClothingItem);
+  createFinanceEntry: (amount: float64, entryType: text, category: text,
+   description: text, date: text) -> (Entry);
+  createFolder: (name: text, color: text) -> (Folder);
+  createNote: (title: text, body: text, folderId: nat, tags: vec text) ->
+   (Note);
+  createOutfit: (name: text, occasion: text, description: text, photoUrl:
+   text, tags: vec text) -> (Outfit);
+  createRoutine: (name: text, timeOfDay: text) -> (Routine);
+  createTask: (title: text, description: text, date: text) -> (Task);
+  deleteBudgetLimit: (id: nat) -> (bool);
+  deleteClothingItem: (itemId: nat) -> ();
+  deleteEntry: (entryId: nat) -> ();
+  deleteFolder: (folderId: nat) -> ();
+  deleteNote: (noteId: nat) -> ();
+  deleteOutfit: (outfitId: nat) -> ();
+  deletePlannerDayOutfit: (date: text) -> ();
+  deleteRoutine: (routineId: nat) -> ();
+  deleteTask: (taskId: nat) -> ();
+  ensureUserRegistered: () -> (bool);
+  getAllBudgetLimits: () -> (vec BudgetLimit) query;
+  getAllClothingItems: () -> (vec ClothingItem) query;
+  getAllEntries: () -> (vec Entry) query;
+  getAllFolders: () -> (vec Folder) query;
+  getAllNotes: () -> (vec Note) query;
+  getAllOutfits: () -> (vec Outfit) query;
+  getAllPlannerDayOutfits: () -> (vec PlannerDayOutfit) query;
+  getAllRoutineCompletions: () -> (vec RoutineCompletion) query;
+  getAllRoutines: () -> (vec Routine) query;
+  getAllTasks: () -> (vec Task) query;
+  getCallerUserProfile: () -> (opt UserProfileView) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getPlannerDayOutfit: (date: text) -> (opt PlannerDayOutfit) query;
+  getRoutineCompletion: (date: text) -> (opt RoutineCompletion) query;
+  getSummary: () -> (FinanceSummary) query;
+  getUserGymState: () -> (opt text) query;
+  getUserProfile: (user: principal) -> (opt UserProfileView) query;
+  isCallerAdmin: () -> (bool) query;
+  listEntriesByType: (entryType: text) -> (vec Entry) query;
+  listTasksByDate: (date: text) -> (vec Task) query;
+  registerCaller: () -> ();
+  saveCallerUserProfile: (profile: UserProfileView) -> ();
+  saveUserGymState: (json: text) -> ();
+  setPlannerDayOutfit: (date: text, outfitId: nat) -> (PlannerDayOutfit);
+  setRoutineCompletion: (date: text, completedRoutineIds: vec nat) ->
+   (RoutineCompletion);
+  updateBudgetLimit: (id: nat, category: text, monthlyLimit: float64) ->
+   (opt BudgetLimit);
+  updateClothingItem: (itemId: nat, name: text, category: text, photoUrl:
+   text) -> (ClothingItem);
+  updateNote: (noteId: nat, title: text, body: text, folderId: nat, tags:
+   vec text) -> (Note);
+  updateOutfit: (outfitId: nat, name: text, occasion: text, description:
+   text, photoUrl: text, tags: vec text) -> (Outfit);
+  updatePreferences: (language: text, darkMode: bool, geminiApiKey: text,
+   currency: text) -> ();
+  updateRoutine: (routineId: nat, name: text, timeOfDay: text) -> (Routine);
+  updateTask: (taskId: nat, title: text, description: text, completed:
+   bool) -> (Task);
+}

@@ -1,0 +1,1631 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  BarChart2,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  Dumbbell,
+  Edit2,
+  Flame,
+  Plus,
+  RefreshCw,
+  Trash2,
+  TrendingUp,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { toast } from "sonner";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface GymExercise {
+  id: string;
+  dayId: string;
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number;
+  restTime: number;
+  duration: number;
+  notes: string;
+}
+
+interface GymDay {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+interface GymWeekSchedule {
+  [dayOfWeek: number]: string; // dayOfWeek (0=Mon) -> gymDayId
+}
+
+interface CompletedSet {
+  exerciseId: string;
+  setIndex: number;
+  reps: number;
+  weight: number;
+}
+
+interface GymSession {
+  id: string;
+  date: string; // YYYY-MM-DD
+  gymDayId: string;
+  gymDayName: string;
+  completedSets: CompletedSet[];
+  timestamp: number;
+}
+
+type GymView = "schedule" | "workout" | "stats";
+
+// ─── Storage helpers ──────────────────────────────────────────────────────────
+
+const KEYS = {
+  days: "sha_gym_days",
+  exercises: "sha_gym_exercises",
+  schedule: "sha_gym_week_schedule",
+  sessions: "sha_gym_sessions",
+  weekStart: "sha_gym_week_start",
+};
+
+function load<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function save(key: string, value: unknown) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const TEMPLATES: {
+  name: string;
+  days: { name: string; exercises: Omit<GymExercise, "id" | "dayId">[] }[];
+}[] = [
+  {
+    name: "Push / Pull / Legs",
+    days: [
+      {
+        name: "Push Day",
+        exercises: [
+          {
+            name: "Bench Press",
+            sets: 4,
+            reps: 10,
+            weight: 60,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Overhead Press",
+            sets: 3,
+            reps: 10,
+            weight: 40,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Tricep Dips",
+            sets: 3,
+            reps: 12,
+            weight: 0,
+            restTime: 60,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+      {
+        name: "Pull Day",
+        exercises: [
+          {
+            name: "Pull-ups",
+            sets: 4,
+            reps: 8,
+            weight: 0,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Barbell Row",
+            sets: 4,
+            reps: 10,
+            weight: 50,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Bicep Curls",
+            sets: 3,
+            reps: 12,
+            weight: 15,
+            restTime: 60,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+      {
+        name: "Leg Day",
+        exercises: [
+          {
+            name: "Squats",
+            sets: 4,
+            reps: 10,
+            weight: 80,
+            restTime: 120,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Leg Press",
+            sets: 3,
+            reps: 12,
+            weight: 100,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Calf Raises",
+            sets: 4,
+            reps: 15,
+            weight: 40,
+            restTime: 60,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Full Body",
+    days: [
+      {
+        name: "Full Body A",
+        exercises: [
+          {
+            name: "Squat",
+            sets: 3,
+            reps: 8,
+            weight: 60,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Bench Press",
+            sets: 3,
+            reps: 8,
+            weight: 50,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Barbell Row",
+            sets: 3,
+            reps: 8,
+            weight: 50,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+      {
+        name: "Full Body B",
+        exercises: [
+          {
+            name: "Deadlift",
+            sets: 3,
+            reps: 5,
+            weight: 80,
+            restTime: 120,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Overhead Press",
+            sets: 3,
+            reps: 8,
+            weight: 40,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Pull-ups",
+            sets: 3,
+            reps: 8,
+            weight: 0,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: "Upper / Lower",
+    days: [
+      {
+        name: "Upper Body",
+        exercises: [
+          {
+            name: "Bench Press",
+            sets: 4,
+            reps: 8,
+            weight: 60,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Pull-ups",
+            sets: 4,
+            reps: 8,
+            weight: 0,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Shoulder Press",
+            sets: 3,
+            reps: 10,
+            weight: 30,
+            restTime: 60,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+      {
+        name: "Lower Body",
+        exercises: [
+          {
+            name: "Squats",
+            sets: 4,
+            reps: 10,
+            weight: 70,
+            restTime: 120,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Romanian Deadlift",
+            sets: 3,
+            reps: 10,
+            weight: 60,
+            restTime: 90,
+            duration: 0,
+            notes: "",
+          },
+          {
+            name: "Leg Curls",
+            sets: 3,
+            reps: 12,
+            weight: 40,
+            restTime: 60,
+            duration: 0,
+            notes: "",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function HeatmapCell({ count }: { count: number }) {
+  const intensity =
+    count === 0
+      ? "bg-muted"
+      : count === 1
+        ? "bg-accent/30"
+        : count === 2
+          ? "bg-accent/60"
+          : "bg-accent";
+  return (
+    <div
+      className={`w-3 h-3 rounded-sm ${intensity}`}
+      title={`${count} workouts`}
+    />
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function GymTab() {
+  const [gymView, setGymView] = useState<GymView>("schedule");
+  const [days, setDays] = useState<GymDay[]>(() => load(KEYS.days, []));
+  const [exercises, setExercises] = useState<GymExercise[]>(() =>
+    load(KEYS.exercises, []),
+  );
+  const [schedule, setSchedule] = useState<GymWeekSchedule>(() =>
+    load(KEYS.schedule, {}),
+  );
+  const [sessions, setSessions] = useState<GymSession[]>(() =>
+    load(KEYS.sessions, []),
+  );
+
+  // persist on change
+  useEffect(() => save(KEYS.days, days), [days]);
+  useEffect(() => save(KEYS.exercises, exercises), [exercises]);
+  useEffect(() => save(KEYS.schedule, schedule), [schedule]);
+  useEffect(() => save(KEYS.sessions, sessions), [sessions]);
+
+  // ── 7-day reset logic ──
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  useEffect(() => {
+    const weekStart = localStorage.getItem(KEYS.weekStart);
+    if (!weekStart) {
+      localStorage.setItem(KEYS.weekStart, todayStr());
+      return;
+    }
+    const msPerDay = 86400000;
+    const diff = (Date.now() - new Date(weekStart).getTime()) / msPerDay;
+    if (diff >= 7) setShowResetDialog(true);
+  }, []);
+
+  const handleResetWeek = () => {
+    localStorage.setItem(KEYS.weekStart, todayStr());
+    setShowResetDialog(false);
+    toast.success("Week reset! Adjust your schedule as needed.");
+  };
+  const handleKeepWeek = () => {
+    localStorage.setItem(KEYS.weekStart, todayStr());
+    setShowResetDialog(false);
+  };
+
+  // ── Active workout state ──
+  const [activeWorkoutDayId, setActiveWorkoutDayId] = useState<string | null>(
+    null,
+  );
+  const [completedSets, setCompletedSets] = useState<Record<string, boolean[]>>(
+    {},
+  );
+  const [liveWeights, setLiveWeights] = useState<Record<string, number>>({});
+  const [liveReps, setLiveReps] = useState<Record<string, number>>({});
+
+  // ── Day editor state ──
+  const [editingDayId, setEditingDayId] = useState<string | null>(null);
+  const [showDaySheet, setShowDaySheet] = useState(false);
+  const [showExerciseSheet, setShowExerciseSheet] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<GymExercise | null>(
+    null,
+  );
+  const [dayForm, setDayForm] = useState({ name: "" });
+  const [exForm, setExForm] = useState({
+    name: "",
+    sets: 3,
+    reps: 10,
+    weight: 0,
+    restTime: 60,
+    duration: 0,
+    notes: "",
+  });
+
+  // ── Stats state ──
+  const [statsMonth, setStatsMonth] = useState(() => new Date().getMonth());
+  const [statsYear, setStatsYear] = useState(() => new Date().getFullYear());
+  const [selectedExerciseStat, setSelectedExerciseStat] = useState<
+    string | null
+  >(null);
+
+  // ── Template picker state ──
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
+  const todayDow = useMemo(() => {
+    const d = new Date().getDay(); // 0=Sun
+    return d === 0 ? 6 : d - 1; // convert to 0=Mon
+  }, []);
+
+  const exForDay = (dayId: string) =>
+    exercises.filter((e) => e.dayId === dayId);
+
+  // ── Day CRUD ──
+  const saveDay = () => {
+    if (!dayForm.name.trim()) return;
+    if (editingDayId) {
+      setDays((prev) =>
+        prev.map((d) =>
+          d.id === editingDayId ? { ...d, name: dayForm.name } : d,
+        ),
+      );
+    } else {
+      const newDay: GymDay = {
+        id: uid(),
+        name: dayForm.name,
+        createdAt: Date.now(),
+      };
+      setDays((prev) => [...prev, newDay]);
+    }
+    setShowDaySheet(false);
+    setDayForm({ name: "" });
+    setEditingDayId(null);
+  };
+
+  const deleteDay = (dayId: string) => {
+    setDays((prev) => prev.filter((d) => d.id !== dayId));
+    setExercises((prev) => prev.filter((e) => e.dayId !== dayId));
+    setSchedule((prev) => {
+      const next = { ...prev };
+      for (const k in next)
+        if (next[Number(k)] === dayId) delete next[Number(k)];
+      return next;
+    });
+  };
+
+  // ── Exercise CRUD ──
+  const saveExercise = () => {
+    if (!exForm.name.trim() || !editingDayId) return;
+    if (editingExercise) {
+      setExercises((prev) =>
+        prev.map((e) =>
+          e.id === editingExercise.id ? { ...e, ...exForm } : e,
+        ),
+      );
+    } else {
+      const newEx: GymExercise = { id: uid(), dayId: editingDayId, ...exForm };
+      setExercises((prev) => [...prev, newEx]);
+    }
+    setShowExerciseSheet(false);
+    setEditingExercise(null);
+    setExForm({
+      name: "",
+      sets: 3,
+      reps: 10,
+      weight: 0,
+      restTime: 60,
+      duration: 0,
+      notes: "",
+    });
+  };
+
+  const deleteExercise = (exId: string) => {
+    setExercises((prev) => prev.filter((e) => e.id !== exId));
+  };
+
+  // ── Template loading ──
+  const loadTemplate = (tpl: (typeof TEMPLATES)[number]) => {
+    const newDays: GymDay[] = tpl.days.map((d) => ({
+      id: uid(),
+      name: d.name,
+      createdAt: Date.now(),
+    }));
+    const newExercises: GymExercise[] = [];
+    tpl.days.forEach((d, i) => {
+      d.exercises.forEach((e) => {
+        newExercises.push({ id: uid(), dayId: newDays[i].id, ...e });
+      });
+    });
+    setDays((prev) => [...prev, ...newDays]);
+    setExercises((prev) => [...prev, ...newExercises]);
+    setShowTemplatePicker(false);
+    toast.success(`"${tpl.name}" template loaded!`);
+  };
+
+  // ── Workout tracking ──
+  const startWorkout = (dayId: string) => {
+    const exList = exForDay(dayId);
+    const initial: Record<string, boolean[]> = {};
+    const weights: Record<string, number> = {};
+    const reps: Record<string, number> = {};
+    exList.forEach((e) => {
+      initial[e.id] = Array(e.sets).fill(false);
+      weights[e.id] = e.weight;
+      reps[e.id] = e.reps;
+    });
+    setCompletedSets(initial);
+    setLiveWeights(weights);
+    setLiveReps(reps);
+    setActiveWorkoutDayId(dayId);
+    setGymView("workout");
+  };
+
+  const toggleSet = (exId: string, setIdx: number) => {
+    setCompletedSets((prev) => {
+      const arr = [...(prev[exId] || [])];
+      arr[setIdx] = !arr[setIdx];
+      return { ...prev, [exId]: arr };
+    });
+  };
+
+  const finishWorkout = () => {
+    if (!activeWorkoutDayId) return;
+    const day = days.find((d) => d.id === activeWorkoutDayId);
+    const exList = exForDay(activeWorkoutDayId);
+    const completed: CompletedSet[] = [];
+    exList.forEach((e) => {
+      (completedSets[e.id] || []).forEach((done, idx) => {
+        if (done)
+          completed.push({
+            exerciseId: e.id,
+            setIndex: idx,
+            reps: liveReps[e.id] ?? e.reps,
+            weight: liveWeights[e.id] ?? e.weight,
+          });
+      });
+    });
+    const session: GymSession = {
+      id: uid(),
+      date: todayStr(),
+      gymDayId: activeWorkoutDayId,
+      gymDayName: day?.name ?? "Workout",
+      completedSets: completed,
+      timestamp: Date.now(),
+    };
+    setSessions((prev) => [...prev, session]);
+    setActiveWorkoutDayId(null);
+    setCompletedSets({});
+    setGymView("schedule");
+    toast.success("Workout saved!");
+  };
+
+  // ── Stats helpers ──
+  const sessionsInMonth = useMemo(
+    () =>
+      sessions.filter((s) => {
+        const d = new Date(s.date);
+        return d.getFullYear() === statsYear && d.getMonth() === statsMonth;
+      }),
+    [sessions, statsMonth, statsYear],
+  );
+
+  const sessionsInYear = useMemo(
+    () => sessions.filter((s) => new Date(s.date).getFullYear() === statsYear),
+    [sessions, statsYear],
+  );
+
+  const heatmapData = useMemo(() => {
+    const map: Record<string, number> = {};
+    sessions.forEach((s) => {
+      map[s.date] = (map[s.date] ?? 0) + 1;
+    });
+    return map;
+  }, [sessions]);
+
+  const allExerciseNames = useMemo(
+    () => [...new Set(exercises.map((e) => e.name))],
+    [exercises],
+  );
+
+  const progressData = useMemo(() => {
+    if (!selectedExerciseStat) return [];
+    const points: { date: string; weight: number; reps: number }[] = [];
+    sessions.forEach((sess) => {
+      const exIds = exercises
+        .filter((e) => e.name === selectedExerciseStat)
+        .map((e) => e.id);
+      const relevant = sess.completedSets.filter((cs) =>
+        exIds.includes(cs.exerciseId),
+      );
+      if (relevant.length > 0) {
+        const maxWeight = Math.max(...relevant.map((r) => r.weight));
+        const maxReps = Math.max(...relevant.map((r) => r.reps));
+        points.push({ date: sess.date, weight: maxWeight, reps: maxReps });
+      }
+    });
+    return points.sort((a, b) => a.date.localeCompare(b.date)).slice(-12);
+  }, [sessions, exercises, selectedExerciseStat]);
+
+  // ── Render helpers ──
+  const renderScheduleView = () => {
+    const todayDayId = schedule[todayDow];
+    const todayDay = days.find((d) => d.id === todayDayId);
+
+    return (
+      <div className="flex-1 overflow-y-auto pb-28 px-4 pt-4 space-y-5">
+        {/* Today's workout */}
+        {todayDay && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-accent/10 border border-accent/30 rounded-2xl p-4"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className="w-4 h-4 text-accent" />
+              <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                Today
+              </span>
+            </div>
+            <p className="font-bold text-foreground text-base mb-3">
+              {todayDay.name}
+            </p>
+            <div className="flex flex-wrap gap-1 mb-3">
+              {exForDay(todayDay.id).map((e) => (
+                <span
+                  key={e.id}
+                  className="text-[10px] bg-accent/20 text-accent px-2 py-0.5 rounded-full"
+                >
+                  {e.name} · {e.sets}×{e.reps}
+                </span>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={() => startWorkout(todayDay.id)}
+            >
+              <Dumbbell className="w-4 h-4 mr-2" /> Start Workout
+            </Button>
+          </motion.div>
+        )}
+
+        {/* Weekly schedule grid */}
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+            Weekly Schedule
+          </p>
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            {DAY_NAMES.map((dayName, dow) => {
+              const assignedId = schedule[dow];
+              const assignedDay = days.find((d) => d.id === assignedId);
+              const isToday = dow === todayDow;
+              return (
+                <div
+                  key={dow}
+                  className={`flex items-center px-4 py-3 border-b border-border last:border-0 ${
+                    isToday ? "bg-accent/5" : ""
+                  }`}
+                >
+                  <span
+                    className={`text-xs font-bold w-8 ${
+                      isToday ? "text-accent" : "text-muted-foreground"
+                    }`}
+                  >
+                    {dayName}
+                  </span>
+                  <div className="flex-1 min-w-0 mx-3">
+                    {assignedDay ? (
+                      <span className="text-sm text-foreground font-medium">
+                        {assignedDay.name}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">
+                        Rest day
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    value={assignedId || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSchedule((prev) => {
+                        const next = { ...prev };
+                        if (val) next[dow] = val;
+                        else delete next[dow];
+                        return next;
+                      });
+                    }}
+                    className="text-xs bg-muted border border-border rounded-lg px-2 py-1 text-foreground max-w-[110px] truncate"
+                  >
+                    <option value="">Rest</option>
+                    {days.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Workout days */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Workout Days
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 px-2 text-muted-foreground"
+                onClick={() => setShowTemplatePicker(true)}
+              >
+                Templates
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7 px-2"
+                onClick={() => {
+                  setEditingDayId(null);
+                  setDayForm({ name: "" });
+                  setShowDaySheet(true);
+                }}
+              >
+                <Plus className="w-3 h-3 mr-1" /> Add Day
+              </Button>
+            </div>
+          </div>
+
+          {days.length === 0 ? (
+            <div className="bg-card border border-border rounded-2xl p-6 text-center">
+              <Dumbbell className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No workout days yet.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add a day or load a template to get started.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {days.map((day) => {
+                const exList = exForDay(day.id);
+                return (
+                  <motion.div
+                    key={day.id}
+                    layout
+                    className="bg-card border border-border rounded-2xl overflow-hidden"
+                  >
+                    <div className="flex items-center px-4 py-3 gap-3">
+                      <Dumbbell className="w-4 h-4 text-accent flex-shrink-0" />
+                      <span className="flex-1 font-semibold text-sm text-foreground">
+                        {day.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7"
+                        onClick={() => {
+                          setEditingDayId(day.id);
+                          setDayForm({ name: day.name });
+                          setShowDaySheet(true);
+                        }}
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7 text-destructive"
+                        onClick={() => deleteDay(day.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+
+                    {/* Exercises */}
+                    <div className="px-4 pb-3 space-y-1.5">
+                      {exList.map((ex) => (
+                        <div
+                          key={ex.id}
+                          className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-semibold text-foreground">
+                              {ex.name}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground ml-2">
+                              {ex.sets}×{ex.reps} ·{" "}
+                              {ex.weight > 0 ? `${ex.weight}kg` : "bodyweight"}
+                              {ex.duration > 0 ? ` · ${ex.duration}min` : ""}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDayId(day.id);
+                              setEditingExercise(ex);
+                              setExForm({
+                                name: ex.name,
+                                sets: ex.sets,
+                                reps: ex.reps,
+                                weight: ex.weight,
+                                restTime: ex.restTime,
+                                duration: ex.duration,
+                                notes: ex.notes,
+                              });
+                              setShowExerciseSheet(true);
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteExercise(ex.id)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDayId(day.id);
+                          setEditingExercise(null);
+                          setExForm({
+                            name: "",
+                            sets: 3,
+                            reps: 10,
+                            weight: 0,
+                            restTime: 60,
+                            duration: 0,
+                            notes: "",
+                          });
+                          setShowExerciseSheet(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-1 py-2 text-xs text-accent hover:bg-accent/10 rounded-xl transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Add Exercise
+                      </button>
+                    </div>
+
+                    <div className="px-4 pb-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => startWorkout(day.id)}
+                      >
+                        <Dumbbell className="w-3.5 h-3.5 mr-2" /> Start{" "}
+                        {day.name}
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderWorkoutView = () => {
+    const day = days.find((d) => d.id === activeWorkoutDayId);
+    const exList = activeWorkoutDayId ? exForDay(activeWorkoutDayId) : [];
+    const totalSets = exList.reduce((s, e) => s + e.sets, 0);
+    const doneSets = Object.values(completedSets).flat().filter(Boolean).length;
+    const progress =
+      totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex-shrink-0 px-4 pt-4 pb-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setGymView("schedule")}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex-1">
+              <p className="font-bold text-foreground text-sm">
+                {day?.name ?? "Workout"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {doneSets} / {totalSets} sets complete
+              </p>
+            </div>
+            <Button size="sm" onClick={finishWorkout} disabled={doneSets === 0}>
+              Finish
+            </Button>
+          </div>
+          <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent rounded-full transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pb-28 px-4 space-y-4">
+          {exList.map((ex) => (
+            <div
+              key={ex.id}
+              className="bg-card border border-border rounded-2xl p-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-semibold text-sm text-foreground">
+                  {ex.name}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {ex.restTime > 0 ? `Rest: ${ex.restTime}s` : ""}
+                </span>
+              </div>
+
+              {/* Weight and reps inputs */}
+              <div className="flex gap-3 mb-3">
+                <div className="flex-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Weight (kg)
+                  </label>
+                  <Input
+                    type="number"
+                    value={liveWeights[ex.id] ?? ex.weight}
+                    onChange={(e) =>
+                      setLiveWeights((prev) => ({
+                        ...prev,
+                        [ex.id]: Number(e.target.value),
+                      }))
+                    }
+                    className="h-8 text-sm mt-1"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Reps
+                  </label>
+                  <Input
+                    type="number"
+                    value={liveReps[ex.id] ?? ex.reps}
+                    onChange={(e) =>
+                      setLiveReps((prev) => ({
+                        ...prev,
+                        [ex.id]: Number(e.target.value),
+                      }))
+                    }
+                    className="h-8 text-sm mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Set checkboxes */}
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: ex.sets }, (_, i) => {
+                  const done = completedSets[ex.id]?.[i] ?? false;
+                  return (
+                    <button
+                      type="button"
+                      key={i}
+                      onClick={() => toggleSet(ex.id, i)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                        done
+                          ? "bg-accent text-white border-accent"
+                          : "bg-muted border-border text-muted-foreground"
+                      }`}
+                    >
+                      {done ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <Circle className="w-3.5 h-3.5" />
+                      )}
+                      Set {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {ex.notes && (
+                <p className="text-[10px] text-muted-foreground mt-2 italic">
+                  {ex.notes}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderStatsView = () => {
+    const monthName = new Date(statsYear, statsMonth).toLocaleString(
+      undefined,
+      { month: "long", year: "numeric" },
+    );
+    const daysInMonth = new Date(statsYear, statsMonth + 1, 0).getDate();
+    // Build 52-week heatmap (last 52 weeks)
+    const now = new Date();
+    const heatmapWeeks: string[][] = [];
+    for (let w = 51; w >= 0; w--) {
+      const week: string[] = [];
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(now);
+        date.setDate(now.getDate() - w * 7 - (6 - d));
+        week.push(date.toISOString().split("T")[0]);
+      }
+      heatmapWeeks.push(week);
+    }
+
+    const totalThisYear = sessionsInYear.length;
+    const totalThisMonth = sessionsInMonth.length;
+
+    return (
+      <div className="flex-1 overflow-y-auto pb-28 px-4 pt-4 space-y-5">
+        {/* Counts */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-card border border-border rounded-2xl p-4 text-center">
+            <p className="text-3xl font-black text-accent">{totalThisMonth}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Workouts this month
+            </p>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-4 text-center">
+            <p className="text-3xl font-black text-accent">{totalThisYear}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Workouts this year
+            </p>
+          </div>
+        </div>
+
+        {/* Monthly calendar heatmap */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Monthly
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (statsMonth === 0) {
+                    setStatsMonth(11);
+                    setStatsYear((y) => y - 1);
+                  } else setStatsMonth((m) => m - 1);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-semibold">{monthName}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (statsMonth === 11) {
+                    setStatsMonth(0);
+                    setStatsYear((y) => y + 1);
+                  } else setStatsMonth((m) => m + 1);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                <div
+                  key={i}
+                  className="text-center text-[9px] text-muted-foreground"
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(
+                (day) => {
+                  const dateStr = `${statsYear}-${String(statsMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const count = heatmapData[dateStr] ?? 0;
+                  return <HeatmapCell key={dateStr} count={count} />;
+                },
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 52-week heatmap */}
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+            Yearly Activity
+          </p>
+          <div className="bg-card border border-border rounded-2xl p-4 overflow-x-auto">
+            <div className="flex gap-0.5 min-w-max">
+              {heatmapWeeks.map((week, wi) => (
+                <div key={wi} className="flex flex-col gap-0.5">
+                  {week.map((date) => (
+                    <HeatmapCell key={date} count={heatmapData[date] ?? 0} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress log */}
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+            Exercise Progress
+          </p>
+          <div className="bg-card border border-border rounded-2xl p-4">
+            {allExerciseNames.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center">
+                No exercise data yet.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={selectedExerciseStat || ""}
+                  onChange={(e) => setSelectedExerciseStat(e.target.value)}
+                  className="w-full text-xs bg-muted border border-border rounded-lg px-3 py-2 text-foreground mb-3"
+                >
+                  <option value="">Select an exercise...</option>
+                  {allExerciseNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                {selectedExerciseStat && progressData.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    No session data for this exercise yet.
+                  </p>
+                )}
+                {progressData.length > 0 && (
+                  <div className="space-y-1.5">
+                    {progressData.map((p, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="text-[10px] text-muted-foreground w-20 shrink-0">
+                          {p.date}
+                        </span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-accent rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, (p.weight / (Math.max(...progressData.map((x) => x.weight)) || 1)) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-[10px] font-semibold text-foreground w-20 text-right">
+                          {p.weight > 0 ? `${p.weight}kg` : "BW"} × {p.reps}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Recent sessions */}
+        {sessions.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+              Recent Sessions
+            </p>
+            <div className="space-y-2">
+              {[...sessions]
+                .reverse()
+                .slice(0, 10)
+                .map((sess) => (
+                  <div
+                    key={sess.id}
+                    className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3"
+                  >
+                    <Dumbbell className="w-4 h-4 text-accent flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">
+                        {sess.gymDayName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {sess.completedSets.length} sets completed
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {sess.date}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Tab bar */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 pt-4 pb-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (gymView === "workout") {
+              setGymView("schedule");
+              setActiveWorkoutDayId(null);
+            } else setGymView("schedule");
+          }}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+            gymView === "schedule" || gymView === "workout"
+              ? "bg-accent text-white shadow-md"
+              : "bg-card border border-border text-muted-foreground"
+          }`}
+        >
+          <Dumbbell className="w-3 h-3 inline mr-1" />
+          {gymView === "workout" ? "Workout" : "Schedule"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setGymView("stats")}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            gymView === "stats"
+              ? "bg-accent text-white shadow-md"
+              : "bg-card border border-border text-muted-foreground"
+          }`}
+        >
+          <BarChart2 className="w-3 h-3" /> Stats
+        </button>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {gymView === "stats" ? (
+          <motion.div
+            key="stats"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-col flex-1 overflow-hidden"
+          >
+            {renderStatsView()}
+          </motion.div>
+        ) : gymView === "workout" ? (
+          <motion.div
+            key="workout"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-col flex-1 overflow-hidden"
+          >
+            {renderWorkoutView()}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="schedule"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-col flex-1 overflow-hidden"
+          >
+            {renderScheduleView()}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 7-day reset dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>New Week</AlertDialogTitle>
+            <AlertDialogDescription>
+              7 days have passed. Would you like to reset the week counter and
+              keep your current schedule, or adjust it first?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleKeepWeek}>
+              Keep Schedule
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetWeek}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Reset Week
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Template picker */}
+      {createPortal(
+        <AnimatePresence>
+          {showTemplatePicker && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60"
+                style={{ zIndex: 200 }}
+                onClick={() => setShowTemplatePicker(false)}
+              />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-background border-t border-border rounded-t-3xl px-5 pt-4 pb-10"
+                style={{ zIndex: 201 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm">Choose a Template</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplatePicker(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {TEMPLATES.map((tpl) => (
+                    <button
+                      type="button"
+                      key={tpl.name}
+                      onClick={() => loadTemplate(tpl)}
+                      className="w-full bg-card border border-border rounded-xl p-4 text-left hover:border-accent transition-colors"
+                    >
+                      <p className="font-semibold text-sm text-foreground">
+                        {tpl.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {tpl.days.length} workout days
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+
+      {/* Day sheet */}
+      {createPortal(
+        <AnimatePresence>
+          {showDaySheet && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60"
+                style={{ zIndex: 200 }}
+                onClick={() => setShowDaySheet(false)}
+              />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-background border-t border-border rounded-t-3xl px-5 pt-4 pb-10"
+                style={{ zIndex: 201 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm">
+                    {editingDayId ? "Edit Day" : "New Workout Day"}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowDaySheet(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Day name (e.g. "Chest Day", "Leg Day")
+                    </label>
+                    <Input
+                      value={dayForm.name}
+                      onChange={(e) => setDayForm({ name: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && saveDay()}
+                      placeholder="e.g. Chest Day"
+                      className="mt-1"
+                      autoFocus
+                    />
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={saveDay}
+                    disabled={!dayForm.name.trim()}
+                  >
+                    {editingDayId ? "Save Changes" : "Create Day"}
+                  </Button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+
+      {/* Exercise sheet */}
+      {createPortal(
+        <AnimatePresence>
+          {showExerciseSheet && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60"
+                style={{ zIndex: 200 }}
+                onClick={() => setShowExerciseSheet(false)}
+              />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-background border-t border-border rounded-t-3xl px-5 pt-4 pb-10 overflow-y-auto max-h-[85vh]"
+                style={{ zIndex: 201 }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-sm">
+                    {editingExercise ? "Edit Exercise" : "Add Exercise"}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowExerciseSheet(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Exercise name
+                    </label>
+                    <Input
+                      value={exForm.name}
+                      onChange={(e) =>
+                        setExForm((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="e.g. Bench Press"
+                      className="mt-1"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Sets
+                      </label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={exForm.sets}
+                        onChange={(e) =>
+                          setExForm((p) => ({
+                            ...p,
+                            sets: Number(e.target.value),
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Reps
+                      </label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={exForm.reps}
+                        onChange={(e) =>
+                          setExForm((p) => ({
+                            ...p,
+                            reps: Number(e.target.value),
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Weight (kg)
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={exForm.weight}
+                        onChange={(e) =>
+                          setExForm((p) => ({
+                            ...p,
+                            weight: Number(e.target.value),
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Rest (sec)
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={exForm.restTime}
+                        onChange={(e) =>
+                          setExForm((p) => ({
+                            ...p,
+                            restTime: Number(e.target.value),
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">
+                        Duration (min)
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={exForm.duration}
+                        onChange={(e) =>
+                          setExForm((p) => ({
+                            ...p,
+                            duration: Number(e.target.value),
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">
+                      Notes (optional)
+                    </label>
+                    <Textarea
+                      value={exForm.notes}
+                      onChange={(e) =>
+                        setExForm((p) => ({ ...p, notes: e.target.value }))
+                      }
+                      placeholder="e.g. Use dumbbells, focus on form"
+                      className="mt-1 resize-none h-16"
+                    />
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={saveExercise}
+                    disabled={!exForm.name.trim()}
+                  >
+                    {editingExercise ? "Save Changes" : "Add Exercise"}
+                  </Button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </div>
+  );
+}

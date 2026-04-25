@@ -1,0 +1,185 @@
+// Version: 1.0.0
+type BudgetLimit__969821469 =
+  {category : Text; createdAt : Int; id : Nat; monthlyLimit : Float};
+type ClothingItem__849442552 =
+  {
+    category : Text;
+    id : Nat;
+    name : Text;
+    photoUrl : Text;
+    timestamp : Time__900049286
+  };
+type Data__791452850<K, V> =
+  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Entry__792238756 =
+  {
+    amount : Float;
+    category : Text;
+    date : Text;
+    description : Text;
+    entryType : Text;
+    id : Nat;
+    timestamp : Time__900049286
+  };
+type Folder__611226987 =
+  {color : Text; id : Nat; name : Text; timestamp : Time__900049286};
+type Int__270357528 = Int__616954475;
+type Int__616954475 = Int;
+type Internal__8484328<K, V> =
+  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
+type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type LegacyPreferences__790941067 =
+  {darkMode : Bool; geminiApiKey : Text; language : Text};
+type LegacyUserProfile__752188781 =
+  {
+    email : Text;
+    finances : Map__605269027<Nat, Entry__792238756>;
+    name : Text;
+    preferences : LegacyPreferences__790941067;
+    registrationTime : Time__900049286;
+    tasks : Map__605269027<Nat, Task__972485619>
+  };
+type Map__158565046<K, V> = Map__297112838<K, V>;
+type Map__297112838<K, V> =
+  {var root : Node__46230540<K, V>; var size : Nat__490723111};
+type Map__605269027<K, V> = Map__158565046<K, V>;
+type Nat__490723111 = Nat__920180692;
+type Nat__920180692 = Nat;
+type Node__46230540<K, V> =
+  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type Note__74666102 =
+  {
+    body : Text;
+    folderId : Nat;
+    id : Nat;
+    tags : [Text];
+    timestamp : Time__900049286;
+    title : Text
+  };
+type Outfit__725881723 =
+  {
+    description : Text;
+    id : Nat;
+    name : Text;
+    occasion : Text;
+    photoUrl : Text;
+    tags : [Text];
+    timestamp : Time__900049286
+  };
+type PlannerDayOutfit__811380733 = {date : Text; outfitId : Nat};
+type Preferences__899524316 =
+  {currency : Text; darkMode : Bool; geminiApiKey : Text; language : Text};
+type RoutineCompletion__318027955 =
+  {completedRoutineIds : [Nat]; date : Text};
+type Routine__467192159 =
+  {id : Nat; name : Text; timeOfDay : Text; timestamp : Time__900049286};
+type Task__972485619 =
+  {
+    completed : Bool;
+    date : Text;
+    description : Text;
+    id : Nat;
+    timestamp : Time__900049286;
+    title : Text;
+    user : User__831686142
+  };
+type Time__796480547 = Int__270357528;
+type Time__900049286 = Time__796480547;
+type UserProfile__491224006 =
+  {
+    email : Text;
+    finances : Map__605269027<Nat, Entry__792238756>;
+    name : Text;
+    preferences : Preferences__899524316;
+    registrationTime : Time__900049286;
+    tasks : Map__605269027<Nat, Task__972485619>
+  };
+type UserRole__1054455867 = {#admin; #guest; #user};
+type User__831686142 = Principal;
+actor {
+  stable accessControlState :
+    {
+      var adminAssigned : Bool;
+      userRoles : Map__605269027<Principal, UserRole__1054455867>
+    };
+  stable var appState :
+    {
+      var entryIdCounter : Nat;
+      var taskIdCounter : Nat;
+      var userProfiles :
+        Map__605269027<User__831686142, LegacyUserProfile__752188781>
+    };
+  stable var budgetLimitIdCounter : Nat;
+  stable var clothingItemIdCounter : Nat;
+  stable var entryIdCounter : Nat;
+  stable var folderIdCounter : Nat;
+  stable var noteIdCounter : Nat;
+  stable var outfitIdCounter : Nat;
+  stable var routineIdCounter : Nat;
+  stable var taskIdCounter : Nat;
+  stable var userBudgetLimits :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Nat, BudgetLimit__969821469>>;
+      var size : Nat__490723111
+    };
+  stable var userClothingItems :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Nat, ClothingItem__849442552>>;
+      var size : Nat__490723111
+    };
+  stable var userFolders :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Nat, Folder__611226987>>;
+      var size : Nat__490723111
+    };
+  stable var userGymState :
+    {
+      var root : Node__46230540<User__831686142, Text>;
+      var size : Nat__490723111
+    };
+  stable var userNotes :
+    {
+      var root :
+        Node__46230540<User__831686142, Map__605269027<Nat, Note__74666102>>;
+      var size : Nat__490723111
+    };
+  stable var userOutfits :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Nat, Outfit__725881723>>;
+      var size : Nat__490723111
+    };
+  stable var userPlannerOutfits :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Text, PlannerDayOutfit__811380733>>;
+      var size : Nat__490723111
+    };
+  stable var userProfilesMap :
+    {
+      var root : Node__46230540<User__831686142, UserProfile__491224006>;
+      var size : Nat__490723111
+    };
+  stable var userRoutineCompletions :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Text, RoutineCompletion__318027955>>;
+      var size : Nat__490723111
+    };
+  stable var userRoutines :
+    {
+      var root :
+        Node__46230540<User__831686142,
+                        Map__605269027<Nat, Routine__467192159>>;
+      var size : Nat__490723111
+    }
+};

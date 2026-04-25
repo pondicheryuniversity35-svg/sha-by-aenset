@@ -1,0 +1,30 @@
+{
+  "overview": "Sha by Aenset is a mobile-first PWA personal assistant with 7 tabs: Home, Notes, Planner, Finance, Profile, Wardrobe, and Gym. Features smart planning, structured notes, a finance tracker with budget limits, wardrobe and outfit planning, gym tracking, and a detailed weather widget. All data persists to ICP backend and syncs across devices.",
+  "features": [
+    "Blank screen fix with error boundary and defensive startup",
+    "Weekly 7-day weather summary card on Home",
+    "Currency preference saved to ICP backend for cross-device sync",
+    "Budget limits with spending alerts in Finance",
+    "Live clock with 12/24-hour toggle and millisecond stopwatch",
+    "Enhanced weather widget with pollen, UV, wind, humidity, sunrise/sunset",
+    "Planner with notifications 10 min before tasks",
+    "Gym tracker with weekly schedule and progress heatmap",
+    "Wardrobe with outfit builder and planner integration",
+    "Multi-language support (14 languages, RTL for Arabic)",
+    "Internet Identity authentication",
+    "PWA installable as 'sha'"
+  ],
+  "category": "productivity",
+  "tags": [
+    "personal-assistant",
+    "pwa",
+    "finance-tracker",
+    "planner",
+    "wardrobe",
+    "gym-tracker",
+    "weather",
+    "icp",
+    "motoko"
+  ],
+  "last_updated": "2026-04-16T19:39:04.635Z"
+}
